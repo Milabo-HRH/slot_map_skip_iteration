@@ -1,231 +1,46 @@
-# Slot Map
+# Slot Map with Skip Iteration
+Implement a slot map with skip iteration based on the [slot_map by Sergey Makeev](https://github.com/SergeyMakeev/slot_map). 
+## Requirements
+* C++20
+## Test
+* Use `cmake -DORDERED=ON` to build the test with linked list version.
+* Use `cmake -DLOW_COMPLEXITY=ON ` to build the test with low complexity version.
+* Add no option after `cmake` to build the test with original slot map.
+## Implementation
+### Slot Map with Low Complexity Jump-Counting Pattern
+This slot map implementation is inspired by Matthew Bentley's paper -- [The low complexity jump-counting pattern - an O(1) time complexity replacement for boolean skipfields](https://plflib.org/matt_bentley_-_the_low_complexity_jump-counting_pattern.pdf). In LCJC(Abbreviation of ’low complexity jump-counting’) algorithm, it's impossible to insert a slot inside a continuous sequence of erased  slots with O(1) time complexity. So we can only insert into slots which has no or only have one adjacent erased slot (We denote those slots with one adjacent erased slot as an edge slot).
 
-[![Actions Status](https://github.com/SergeyMakeev/slot_map/workflows/build/badge.svg)](https://github.com/SergeyMakeev/slot_map/actions)
-[![Build status](https://ci.appveyor.com/api/projects/status/i00kv17e3ia5jr7q?svg=true)](https://ci.appveyor.com/project/SergeyMakeev/slot-map)
-[![codecov](https://codecov.io/gh/SergeyMakeev/slot_map/branch/main/graph/badge.svg?token=3GRAFTRYQU)](https://codecov.io/gh/SergeyMakeev/slot_map)
-![MIT](https://img.shields.io/badge/license-MIT-blue.svg)
+To achieve that, the first implementation comes to the mind is a deque: when erase a edge slot,
+push it to the front of the deque; when erase other slot, push it to the back of the deque; 
+when insert a slot, pop the front of the deque. However, there are one problem with this implementation: 
+version counter has a limit, when a slot's version counter reaches the limit, it will be inactivated and not be recycled. 
+So the slots adjacent to it can be pop out of the deque even if they are not edge slots.
 
-A Slot Map is a high-performance associative container with persistent unique keys to access stored values. Upon insertion, a key is returned that can be used to later access or remove the values. Insertion, removal, and access are all guaranteed to take `O(1)` time (best, worst, and average case)  
-Great for storing collections of objects that need stable, safe references but have no clear ownership.
+To address this problem, we used a hash table to record the slots that are edge slots and a hash table to record the slots are not edge slots. When a slot is erased/inserted, 
+we do operations to keep only the edge slots are in the first hash table and we only reuse the slots in the first hash table.
 
-The difference between a `std::unordered_map` and a `dod::slot_map` is that the slot map generates and returns the key when inserting a value. A key is always unique and will only refer to the value that was inserted.
-
-  Usage example:
-  ```cpp
-  slot_map<std::string> strings;
-  auto red = strings.emplace("Red");
-  auto green = strings.emplace("Green");
-  auto blue = strings.emplace("Blue");
-
-  const std::string* val1 = strings.get(red);
-  if (val1)
-  {
-    printf("red = '%s'\n", val1->c_str());
-  }
-
-  strings.erase(green);
-  printf("%d\n", strings.has(green));
-  printf("%d\n", strings.has(blue));
-  ```
-
-  Output:
-  ```
-  red = 'Red'
-  0
-  1
-  ```
-  
-# Implementation details
-
-The slot map container will allocate memory in pages (default page size = 4096 elements) to avoid memory spikes during growth and be able to deallocate pages that are no longer needed.
-Also, the page-based memory allocator is very important since it guarantees "pointers stability"; hence, we never move values in memory.
-
-
-Keys are always uses `uint64_t/uint32_t` (configurable) and technically typless, but we "artificially" make them typed to get a few extra compile-time checks.  
-i.e., the following code will produce a compiler error
-```cpp
-slot_map<std::string> strings;
-slot_map<int> numbers;
-slot_map<int>::key numKey = numbers.emplace(3);
-const std::string* value = strings.get(numKey);   //  <---- can not use slot_map<int>::key to index slot_map<std::string> !
+```c++
+    std::unordered_map<index_t, key, std::hash<index_t>, std::equal_to<index_t>, stl::Allocator<std::pair<const index_t, key>>> edgeIndicies;
+    std::unordered_map<index_t, key, std::hash<index_t>, std::equal_to<index_t>, stl::Allocator<std::pair<const index_t, key>>> innerIndicies;
 ```
+In implementation, we found this implementation is slower than the original slot map. It may be caused by the following 3 reasons:
+* Although average time complexity is still O(1) for insertion and deletion but the worst case become O(M) because of the hash table -- M is the current number of erased slots. 
+* The hash table is not cache friendly. And all the operations to maintain the jump-counting pattern and the hash table will cause more cache misses.
+* If two edge slots of a continuous sequence of erased slots got inactivated, all the slots in the middle of them will never be reused and stay in the hash table forever which can cause memory leak and slower the hash table.
 
-The keys can be converted to/from their numeric types if you do not need additional type checks.
-```cpp
-slot_map<int> numbers;
-slot_map<int>::key numKey = numbers.emplace(3);
-uint64_t rawKey = numKey;  // convert to numeric type (like cast pointer to void*)
-...
-slot_map<int>::key numKey2{rawKey}; // create key from numeric type
-```
+To address the second problem, we can store the jump-counting pattern for each page rather than store them in each slot's metadata to reduce the cache misses. However, I don't think there are approaches to address the first and third problem. So I think this implementation is not a good choice.
 
-When a slot is reused, its version is automatically incremented (to invalidate all existing keys that refers to the same slot).
-But since we only use 20-bits *(10-bits for 32 bit keys)* for version counter, there is a possibility that the version counter will wrap around,
-and a new item will get the same key as a removed item.
+### Slot Map with High Complexity Jump-Counting Pattern
+I haven't implemented this version yet. This algorithm also comes from Matthew Bentley's paper. By maintaining a jump-counting pattern for each node, we no longer need to maintain these 2 hash tables. However, insert a node into a continuous sequence of erased slots will be O(N) time complexity -- N is the number of erased slots in the sequence, which does not satisfy our requirement. Empirically, we can maintain jump-counting patterns for each page, so the time complexity will be O(M) -- M is the number of erased slots in the page. But for each iteration, we need to iterate all the pages between next slot and current slot to find the next slot. So the time complexity for iteration will be O(N/PageSize) -- N is the number of slots between next occupied slot and current slot. There must be some trade-offs between insertion and iteration.
 
-To mitigate this potential issue, once the version counter overflows, we disable that slot so that no new keys are returned for this slot
-(this gives us a guarantee that there are no key collisions)
+### Slot Map with linked list
+Because in slot map, the order we iterate its elements can be random. So we can use a linked list to record the order each slot is inserted. When we erase a slot, we can remove it from the linked list. When we insert a slot, we can insert it to the back of the linked list. When we iterate the slot map, we just iterate the linked list. 
+We don't use a real pointer for the linked list, we use the index of the slot as the pointer and store these indexes in each slot's metadata. The time complexity for insertion and deletion is O(1). The time complexity for iteration is O(N) -- N is the number of occupied slots.
 
-To prevent version overflow from happening too often, we need to ensure that we don't reuse the same slot too often.
-So we do not reuse recently freed slot-indices as long as their number is below a certain threshold (`kMinFreeIndices = 64`).
+Pros:
+* The worst case time complexity for insertion, deletion, and one step in iteration is O(1).
+* Easy to maintain and not cause memory leak. Not cause performance degradation when the number of erased slots increases.
 
-Keys also can carry a few extra bits of information provided by a user that we called `tag`.  
-That might be handy to add application-specific data to keys.
-
-For example:
-```cpp
-  slot_map<std::string> strings;
-  auto red = strings.emplace("Red");
-  red.set_tag(13);
-  
-  auto tag = red.get_tag();
-  assert(tag == 13);
-```
-
-Here is how a key structure looks like internally
-
-64-bit key type
-
-| Component      |  Number of bits        |
-| ---------------|------------------------|
-| tag            |  12                    |
-| version        |  20 (0..1,048,575      |
-| index          |  32 (0..4,294,967,295) |
-
-32-bit key type
-
-| Component      |  Number of bits     |
-| ---------------|---------------------|
-| tag            |  2                  |
-| version        |  10 (0..1023)       |
-| index          |  20 (0..1,048,575)  |
-
-Note: To use your custom memory allocator define `SLOT_MAP_ALLOC`/`SLOT_MAP_FREE` before including `"slot_map.h"`
-
-```cpp
-#define SLOT_MAP_ALLOC(sizeInBytes, alignment) aligned_alloc(alignment, sizeInBytes)
-#define SLOT_MAP_FREE(ptr) free(ptr)
-#include "slot_map.h"
-```
-
-
-# API
-  
-`bool has_key(key k) const noexcept`  
-Returns true if the slot map contains a specific key  
-    
-`void reset()`  
-Clears the slot map and releases any allocated memory.  
-Note: By calling this function, you must guarantee that no handles are in use!  
-Otherwise calling this function might be dangerous and lead to key "collisions".  
-You might consider using "clear()" instead.  
-  
-`void clear()`  
-Clears the slot map but keeps the allocated memory for reuse.  
-Automatically increases version for all the removed elements (the same as calling "erase()" for all existing elements)  
-      
-`const T* get(key k) const noexcept`  
-If key exists returns a const pointer to the value corresponding to the given key or returns null elsewere.  
-      
-`T* get(key k)`  
-If key exists returns a pointer to the value corresponding to the given key or returns null elsewere.  
-      
-`key emplace(Args&&... args)`  
-Constructs element in-place and returns a unique key that can be used to access this value.  
-      
-`void erase(key k)`  
-Removes element (if such key exists) from the slot map.  
-      
-`std::optional<T> pop(key k)`  
-Removes element (if such key exists) from the slot map, returning the value at the key if the key was not previously removed.  
-      
-`bool empty() const noexcept`  
-Returns true if the slot map is empty.  
-   
-`size_type size() const noexcept`  
-Returns the number of elements in the slot map.  
-
-`void swap(slot_map& other) noexcept`  
-Exchanges the content of the slot map by the content of another slot map object of the same type.  
-  
-`slot_map(const slot_map& other)`  
-Copy constructor  
-
-`slot_map& operator=(const slot_map& other)`  
-Copy assignment  
-
-`slot_map(slot_map&& other) noexcept`  
-Move constructor
-
-`slot_map& operator=(slot_map&& other) noexcept`  
-Move asignment
-
-
-`const_values_iterator begin() const noexcept`  
-`const_values_iterator end() const noexcept`  
-Const values iterator
-
-```cpp
-for (const auto& value : slotMap)
-{
- ...
-}
-```
-
-`Items items() const noexcept`  
-Const key/value iterator
-
-```cpp
-for (const auto& [key, value] : slotMap.items())
-{
-...
-}
-```
-  
-# References
-
-  Sean Middleditch  
-  Data Structures for Game Developers: The Slot Map, 2013  
-  https://web.archive.org/web/20180121142549/http://seanmiddleditch.com/data-structures-for-game-developers-the-slot-map/ 
-  
-  Niklas Gray  
-  Building a Data-Oriented Entity System (part 1), 2014  
-  http://bitsquid.blogspot.com/2014/08/building-data-oriented-entity-system.html  
-
-  Noel Llopis  
-  Managing Data Relationships, 2010  
-  https://gamesfromwithin.com/managing-data-relationships  
-
-  Stefan Reinalter  
-  Adventures in data-oriented design - Part 3c: External References, 2013  
-  https://blog.molecular-matters.com/2013/07/24/adventures-in-data-oriented-design-part-3c-external-references/  
-
-  Niklas Gray  
-  Managing Decoupling Part 4 - The ID Lookup Table, 2011  
-  https://bitsquid.blogspot.com/2011/09/managing-decoupling-part-4-id-lookup.html  
-
-  Sander Mertens  
-  Making the most of ECS identifiers, 2020  
-  https://ajmmertens.medium.com/doing-a-lot-with-a-little-ecs-identifiers-25a72bd2647  
-
-  Michele Caini  
-  ECS back and forth. Part 9 - Sparse sets and EnTT, 2020  
-  https://skypjack.github.io/2020-08-02-ecs-baf-part-9/  
-
-  Andre Weissflog  
-  Handles are the better pointers, 2018  
-  https://floooh.github.io/2018/06/17/handles-vs-pointers.html  
-
-  Allan Deutsch  
-  C++Now 2017: "The Slot Map Data Structure", 2017  
-  https://www.youtube.com/watch?v=SHaAR7XPtNU  
-
-  Jeff Gates  
-  Init, Update, Draw - Data Arrays, 2012  
-  https://greysphere.tumblr.com/post/31601463396/data-arrays  
-  
-  Niklas Gray  
-  Data Structures Part 1: Bulk Data, 2019  
-  https://ourmachinery.com/post/data-structures-part-1-bulk-data/  
-  
-  
+Cons:
+* Not cache friendly. We may need to iterate back and forth in the linked list.
+* Need to allocate more memory for each slot's metadata. Need a extra uint32_t for each slot to store the index of the next slot in the linked list compared with the jump-counting pattern version.
