@@ -2,7 +2,7 @@
 #if defined(LOW_COMPLEXITY)
 #include <slot_map_low_complexity.h>
 template <class T, size_t PAGESIZE = 4096, size_t MINFREEINDICES = 64>
-using slot_map = slot_map_low_complexity<T, dod::slot_map_key64<T>, PAGESIZE, MINFREEINDICES>;
+using slot_map = dod::slot_map_low_complexity<T, dod::slot_map_key64<T>, PAGESIZE, MINFREEINDICES>;
 #elif defined(ORDERED)
 #include <ordered_slot_map.h>
 template <class T, size_t PAGESIZE = 4096, size_t MINFREEINDICES = 64>
@@ -10,7 +10,7 @@ using slot_map = dod::ordered_slot_map<T, dod::slot_map_key64<T>, PAGESIZE, MINF
 #else
 #include <slot_map.h>
 template <class T, size_t PAGESIZE = 4096, size_t MINFREEINDICES = 64>
-using slot_map64 = slot_map<T, dod::slot_map_key64<T>, PAGESIZE, MINFREEINDICES>;
+using slot_map = dod::slot_map<T, dod::slot_map_key64<T>, PAGESIZE, MINFREEINDICES>;
 #endif
 #include <unordered_map>
 
