@@ -1,0 +1,72 @@
+[==========] Running 29 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 29 tests from SlotMapTest
+[ RUN      ] SlotMapTest.BasicTest64
+[       OK ] SlotMapTest.BasicTest64 (0 ms)
+[ RUN      ] SlotMapTest.BasicTest32
+[       OK ] SlotMapTest.BasicTest32 (0 ms)
+[ RUN      ] SlotMapTest.NonTrivialCtorDtor
+[       OK ] SlotMapTest.NonTrivialCtorDtor (0 ms)
+[ RUN      ] SlotMapTest.TagTest64
+[       OK ] SlotMapTest.TagTest64 (0 ms)
+[ RUN      ] SlotMapTest.TagTest32
+[       OK ] SlotMapTest.TagTest32 (0 ms)
+[ RUN      ] SlotMapTest.KeyImplicitConversionToNumber64
+[       OK ] SlotMapTest.KeyImplicitConversionToNumber64 (0 ms)
+[ RUN      ] SlotMapTest.KeyImplicitConversionToNumber32
+[       OK ] SlotMapTest.KeyImplicitConversionToNumber32 (0 ms)
+[ RUN      ] SlotMapTest.ConstantGetter
+[       OK ] SlotMapTest.ConstantGetter (0 ms)
+[ RUN      ] SlotMapTest.IteratorsComparison
+[       OK ] SlotMapTest.IteratorsComparison (0 ms)
+[ RUN      ] SlotMapTest.Iterator
+[       OK ] SlotMapTest.Iterator (0 ms)
+[ RUN      ] SlotMapTest.CheckCtorsDtors
+[       OK ] SlotMapTest.CheckCtorsDtors (0 ms)
+[ RUN      ] SlotMapTest.CheckMoves
+[       OK ] SlotMapTest.CheckMoves (0 ms)
+[ RUN      ] SlotMapTest.SwapTest
+[       OK ] SlotMapTest.SwapTest (0 ms)
+[ RUN      ] SlotMapTest.CopyAssignment
+[       OK ] SlotMapTest.CopyAssignment (0 ms)
+[ RUN      ] SlotMapTest.CopyAssignmentPod
+[       OK ] SlotMapTest.CopyAssignmentPod (0 ms)
+[ RUN      ] SlotMapTest.CopyCtor
+[       OK ] SlotMapTest.CopyCtor (0 ms)
+[ RUN      ] SlotMapTest.CopyAssignmentWithInactivePages
+[       OK ] SlotMapTest.CopyAssignmentWithInactivePages (10341 ms)
+[ RUN      ] SlotMapTest.MoveAssignment
+[       OK ] SlotMapTest.MoveAssignment (0 ms)
+[ RUN      ] SlotMapTest.MoveCtor
+[       OK ] SlotMapTest.MoveCtor (0 ms)
+[ RUN      ] SlotMapTest.IdCollisions_Slow
+
+Num allocations: 825032704
+Pages: total: 2, active: 1, inactive: 1
+Items: total: 1344, alive: 1, tombstone: 1087, inactive: 256
+[       OK ] SlotMapTest.IdCollisions_Slow (1494417 ms)
+[ RUN      ] SlotMapTest.BasicIterators
+[       OK ] SlotMapTest.BasicIterators (8981 ms)
+[ RUN      ] SlotMapTest.BasicIterators2
+[       OK ] SlotMapTest.BasicIterators2 (0 ms)
+[ RUN      ] SlotMapTest.BasicIterators3
+[       OK ] SlotMapTest.BasicIterators3 (0 ms)
+[ RUN      ] SlotMapTest.IdsToAssociativeContainers64
+[       OK ] SlotMapTest.IdsToAssociativeContainers64 (0 ms)
+[ RUN      ] SlotMapTest.IdsToAssociativeContainers32
+[       OK ] SlotMapTest.IdsToAssociativeContainers32 (0 ms)
+[ RUN      ] SlotMapTest.SlotsDeactivationOnClear
+[       OK ] SlotMapTest.SlotsDeactivationOnClear (23226 ms)
+[ RUN      ] SlotMapTest.PageDeactivationOnClear
+[       OK ] SlotMapTest.PageDeactivationOnClear (20679 ms)
+[ RUN      ] SlotMapTest.InvalidAndMalformedKeys
+[       OK ] SlotMapTest.InvalidAndMalformedKeys (0 ms)
+[ RUN      ] SlotMapTest.WorkingWithRemovedPages
+Pages: total: 7, active: 5, inactive: 2
+Items: total: 130, alive: 128, tombstone: 1, inactive: 1
+[       OK ] SlotMapTest.WorkingWithRemovedPages (14609 ms)
+[----------] 29 tests from SlotMapTest (1572267 ms total)
+
+[----------] Global test environment tear-down
+[==========] 29 tests from 1 test suite ran. (1572267 ms total)
+[  PASSED  ] 29 tests.

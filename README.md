@@ -44,3 +44,14 @@ Pros:
 Cons:
 * Not cache friendly. We may need to iterate back and forth in the linked list.
 * Need to allocate more memory for each slot's metadata. Need a extra uint32_t for each slot to store the index of the next slot in the linked list compared with the jump-counting pattern version.
+
+## Test Result
+### Test Environment
+* CPU: Apple M2 Pro
+* Memory: 16GB
+* OS: macOS Sonoma 14.2
+### Test Result
+Original slot map: original_result.txt
+Ordered slot map: ordered_result.txt
+
+PS: Even in iteration test, the original slot map is faster than the ordered slot map. I think it's because the test case is too dense and most time is not consumed during iteration. So the time complexity for iteration is not the main factor that affects the performance here.
