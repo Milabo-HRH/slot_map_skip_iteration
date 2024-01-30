@@ -996,6 +996,7 @@ template <typename T, typename TKeyType = slot_map_key64<T>, size_t PAGESIZE = 4
                 tailMeta.next = indexToStorage(index);
                 m.next = 0;
                 m.prev = tailIndex;
+                tailIndex = indexToStorage(index);
             }
             else
             {
@@ -1015,9 +1016,24 @@ template <typename T, typename TKeyType = slot_map_key64<T>, size_t PAGESIZE = 4
         maxValidIndex = std::max(maxValidIndex, index);
 
         PageAddr addr = getAddrFromIndex(index);
-        const Meta& m = getMetaByAddr(addr);
+        Meta& m = getMetaByAddr(addr);
         SLOT_MAP_ASSERT(m.tombstone == 0);
-
+        if (tailIndex)
+        {
+            // update tail
+            const PageAddr tailAddr = getAddrFromIndex(storageToIndex(tailIndex));
+            Meta& tailMeta = getMetaByAddr(tailAddr);
+            tailMeta.next = indexToStorage(index);
+            m.next = 0;
+            m.prev = tailIndex;
+            tailIndex = indexToStorage(index);
+        }
+        else
+        {
+            // update both head and tail
+            tailIndex = headIndex = indexToStorage(index);
+            m.prev = m.next = 0;
+        }
         ValueStorage& v = getValueByAddr(addr);
         construct<T>(&v, std::forward<Args>(args)...);
         numItems++;
