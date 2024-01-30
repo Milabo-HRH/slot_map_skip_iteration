@@ -1216,12 +1216,12 @@ template <typename T, typename TKeyType = slot_map_key64<T>, size_t PAGESIZE = 4
             if (m.next)
             {
                 currentIndex = slotMap->storageToIndex(m.next);
-                return *this;
             }
             else
             {
-                return end();
+                currentIndex = slotMap->getMaxValidIndex() + static_cast<size_type>(1);
             }
+            return *this;
         }
 
         const_values_iterator operator++(int) noexcept
@@ -1331,12 +1331,12 @@ template <typename T, typename TKeyType = slot_map_key64<T>, size_t PAGESIZE = 4
             if (m.next)
             {
                 currentIndex = slotMap->storageToIndex(m.next);
-                return *this;
             }
             else
             {
-                return end();
+                currentIndex = slotMap->getMaxValidIndex() + static_cast<size_type>(1);
             }
+            return *this;
             // do
             // {
             //     currentIndex++;
@@ -1371,7 +1371,7 @@ template <typename T, typename TKeyType = slot_map_key64<T>, size_t PAGESIZE = 4
 
         const_kv_iterator begin() const noexcept
         {
-            if (slotMap->pages.empty() || headIndex==0) return end();
+            if (slotMap->pages.empty() || slotMap->headIndex==0) return end();
             size_type index = slotMap->storageToIndex(slotMap->headIndex);
             // while (index <= slotMap->getMaxValidIndex() && slotMap->isTombstone(index))
             // {

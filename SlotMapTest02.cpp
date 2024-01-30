@@ -1,16 +1,28 @@
 #include <array>
 #include <gtest/gtest.h>
+#if defined(LOW_COMPLEXITY)
+#include <slot_map_low_complexity.h>
+template <class T, size_t PAGESIZE = 4096, size_t MINFREEINDICES = 64>
+using slot_map = slot_map_low_complexity<T, dod::slot_map_key64<T>, PAGESIZE, MINFREEINDICES>;
+#elif defined(ORDERED)
+#include <ordered_slot_map.h>
+template <class T, size_t PAGESIZE = 4096, size_t MINFREEINDICES = 64>
+using slot_map = dod::ordered_slot_map<T, dod::slot_map_key64<T>, PAGESIZE, MINFREEINDICES>;
+#else
 #include <slot_map.h>
+template <class T, size_t PAGESIZE = 4096, size_t MINFREEINDICES = 64>
+using slot_map64 = slot_map<T, dod::slot_map_key64<T>, PAGESIZE, MINFREEINDICES>;
+#endif
 #include <unordered_set>
 
 // Note: You could skip slow tests by using "SlotMapTest --gtest_filter=-SlotMapTest.*_Slow"
 TEST(SlotMapTest, IdCollisions_Slow)
 {
     static const int kNumberOfIds = 1024;
-    std::vector<dod::slot_map<int>::key> ids;
+    std::vector<slot_map<int>::key> ids;
     ids.resize(kNumberOfIds);
 
-    dod::slot_map<int> slotMap;
+    slot_map<int> slotMap;
     for (size_t i = 0; i < ids.size(); i++)
     {
         ids[i] = slotMap.emplace(int(113 + i));
@@ -26,7 +38,7 @@ TEST(SlotMapTest, IdCollisions_Slow)
         slotMap.erase(ids[i]);
     }
 
-    std::unordered_set<dod::slot_map<int>::key> idsToTest;
+    std::unordered_set<slot_map<int>::key> idsToTest;
     for (size_t i = 0; i < ids.size(); i++)
     {
         idsToTest.emplace(ids[i]);
@@ -43,7 +55,7 @@ TEST(SlotMapTest, IdCollisions_Slow)
 #endif
 
     static const int kNumberOfTempIds = 1024;
-    std::array<dod::slot_map<int>::key, kNumberOfTempIds> tempIds;
+    std::array<slot_map<int>::key, kNumberOfTempIds> tempIds;
 
     size_t numAllocationsChecked = 0;
     for (size_t iter = 1; iter <= kNumberOfIterations; iter++)

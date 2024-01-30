@@ -1,5 +1,17 @@
 #include <gtest/gtest.h>
+#if defined(LOW_COMPLEXITY)
+#include <slot_map_low_complexity.h>
+template <class T, size_t PAGESIZE = 4096, size_t MINFREEINDICES = 64>
+using slot_map = slot_map_low_complexity<T, dod::slot_map_key64<T>, PAGESIZE, MINFREEINDICES>;
+#elif defined(ORDERED)
+#include <ordered_slot_map.h>
+template <class T, size_t PAGESIZE = 4096, size_t MINFREEINDICES = 64>
+using slot_map = dod::ordered_slot_map<T, dod::slot_map_key64<T>, PAGESIZE, MINFREEINDICES>;
+#else
 #include <slot_map.h>
+template <class T, size_t PAGESIZE = 4096, size_t MINFREEINDICES = 64>
+using slot_map64 = slot_map<T, dod::slot_map_key64<T>, PAGESIZE, MINFREEINDICES>;
+#endif
 #include <unordered_map>
 
 TEST(SlotMapTest, BasicIterators)
@@ -18,7 +30,7 @@ TEST(SlotMapTest, BasicIterators)
 
     EXPECT_EQ(slotMap.size(), uint32_t(0));
 
-    std::unordered_map<dod::slot_map<int>::key, int> keyToValue;
+    std::unordered_map<slot_map<int>::key, int> keyToValue;
     uint32_t numElements = 16384;
     for (int j = 0; j < int(numElements); j++)
     {
@@ -75,7 +87,7 @@ struct CustomType
 
 TEST(SlotMapTest, BasicIterators2)
 {
-    dod::slot_map<CustomType> slotMap;
+    slot_map<CustomType> slotMap;
     slotMap.emplace(CustomType{1});
     slotMap.emplace(CustomType{2});
     slotMap.emplace(CustomType{3});
@@ -94,7 +106,7 @@ TEST(SlotMapTest, BasicIterators2)
 
 TEST(SlotMapTest, BasicIterators3)
 {
-    dod::slot_map<CustomType> slotMap;
+    slot_map<CustomType> slotMap;
     slotMap.emplace(CustomType{1});
     slotMap.emplace(CustomType{2});
     slotMap.emplace(CustomType{3});

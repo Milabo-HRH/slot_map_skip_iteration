@@ -1,6 +1,18 @@
 #include <gtest/gtest.h>
 #include <map>
+#if defined(LOW_COMPLEXITY)
+#include <slot_map_low_complexity.h>
+template <class T, size_t PAGESIZE = 4096, size_t MINFREEINDICES = 64>
+using slot_map = slot_map_low_complexity<T, dod::slot_map_key64<T>, PAGESIZE, MINFREEINDICES>;
+#elif defined(ORDERED)
+#include <ordered_slot_map.h>
+template <class T, size_t PAGESIZE = 4096, size_t MINFREEINDICES = 64>
+using slot_map = dod::ordered_slot_map<T, dod::slot_map_key64<T>, PAGESIZE, MINFREEINDICES>;
+#else
 #include <slot_map.h>
+template <class T, size_t PAGESIZE = 4096, size_t MINFREEINDICES = 64>
+using slot_map64 = slot_map<T, dod::slot_map_key64<T>, PAGESIZE, MINFREEINDICES>;
+#endif
 #include <unordered_map>
 
 // Note: You could run "SlotMapTest --gtest_filter=SlotMapTest.PageDeactivationOnClear" if you need to run only a specific test
@@ -65,7 +77,7 @@ TEST(SlotMapTest, IdsToAssociativeContainers32)
 
 TEST(SlotMapTest, SlotsDeactivationOnClear)
 {
-    dod::slot_map<int> slotMap;
+    slot_map<int> slotMap;
     for (int i = 0; i < static_cast<int>(decltype(slotMap)::key::kMaxVersion) + 10; i++)
     {
         for (size_t k = 0; k < 128; k++)
@@ -102,11 +114,11 @@ TEST(SlotMapTest, PageDeactivationOnClear)
 
 TEST(SlotMapTest, InvalidAndMalformedKeys)
 {
-    dod::slot_map<int> slotMap;
+    slot_map<int> slotMap;
     slotMap.emplace(1);
     slotMap.emplace(2);
     slotMap.emplace(3);
-    dod::slot_map<int>::key invalidKey = dod::slot_map<int>::key::invalid();
+    slot_map<int>::key invalidKey = slot_map<int>::key::invalid();
 
     const int* val1 = slotMap.get(invalidKey);
     EXPECT_EQ(val1, nullptr);
@@ -117,7 +129,7 @@ TEST(SlotMapTest, InvalidAndMalformedKeys)
     EXPECT_EQ(opt1.has_value(), false);
     slotMap.erase(invalidKey);
 
-    dod::slot_map<int>::key malformedKey;
+    slot_map<int>::key malformedKey;
     malformedKey.raw = 0xffffffffffffffffull;
 
     const int* val2 = slotMap.get(malformedKey);
@@ -129,7 +141,7 @@ TEST(SlotMapTest, InvalidAndMalformedKeys)
     EXPECT_EQ(opt2.has_value(), false);
     slotMap.erase(malformedKey);
 
-    dod::slot_map<int>::key zeroKey;
+    slot_map<int>::key zeroKey;
     zeroKey.raw = 0x0ull;
 
     const int* val3 = slotMap.get(zeroKey);

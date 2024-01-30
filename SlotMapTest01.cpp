@@ -1,5 +1,17 @@
 #include <gtest/gtest.h>
+#if defined(LOW_COMPLEXITY)
+#include <slot_map_low_complexity.h>
+template <class T, size_t PAGESIZE = 4096, size_t MINFREEINDICES = 64>
+using slot_map = slot_map_low_complexity<T, dod::slot_map_key64<T>, PAGESIZE, MINFREEINDICES>;
+#elif defined(ORDERED)
+#include <ordered_slot_map.h>
+template <class T, size_t PAGESIZE = 4096, size_t MINFREEINDICES = 64>
+using slot_map = dod::ordered_slot_map<T, dod::slot_map_key64<T>, PAGESIZE, MINFREEINDICES>;
+#else
 #include <slot_map.h>
+template <class T, size_t PAGESIZE = 4096, size_t MINFREEINDICES = 64>
+using slot_map64 = slot_map<T, dod::slot_map_key64<T>, PAGESIZE, MINFREEINDICES>;
+#endif
 
 /*
 void _onAssertionFailed(const char* expression, const char* srcFile, unsigned int srcLine)
@@ -127,7 +139,7 @@ TEST(SlotMapTest, BasicTest32)
 
 TEST(SlotMapTest, NonTrivialCtorDtor)
 {
-    dod::slot_map<std::string> slotMap;
+    slot_map<std::string> slotMap;
     EXPECT_EQ(slotMap.size(), 0u);
 
     {
@@ -287,7 +299,7 @@ TEST(SlotMapTest, KeyImplicitConversionToNumber32)
     EXPECT_EQ(test, 0ull);
 }
 
-void testFunction(dod::slot_map<std::string>::key k, const dod::slot_map<std::string>& slotMap)
+void testFunction(slot_map<std::string>::key k, const slot_map<std::string>& slotMap)
 {
     const std::string* v = slotMap.get(k);
     ASSERT_NE(v, nullptr);
@@ -296,7 +308,7 @@ void testFunction(dod::slot_map<std::string>::key k, const dod::slot_map<std::st
 
 TEST(SlotMapTest, ConstantGetter)
 {
-    dod::slot_map<std::string> slotMap;
+    slot_map<std::string> slotMap;
     EXPECT_EQ(slotMap.size(), 0u);
     auto id = slotMap.emplace("test");
     testFunction(id, slotMap);
@@ -304,7 +316,7 @@ TEST(SlotMapTest, ConstantGetter)
 
 TEST(SlotMapTest, IteratorsComparison)
 {
-    dod::slot_map<std::string> slotMap;
+    slot_map<std::string> slotMap;
     EXPECT_FALSE(slotMap.begin() != slotMap.end());
     EXPECT_TRUE(slotMap.begin() == slotMap.end());
 
@@ -314,7 +326,7 @@ TEST(SlotMapTest, IteratorsComparison)
 
 TEST(SlotMapTest, Iterator)
 {
-    dod::slot_map<int> slotMap;
+    slot_map<int> slotMap;
     ASSERT_EQ(0u, slotMap.size());
 
     auto id1 = slotMap.emplace(12);
@@ -358,7 +370,7 @@ TEST(SlotMapTest, CheckCtorsDtors)
     {
         EXPECT_EQ(ctorCount, 0);
         EXPECT_EQ(dtorCount, 0);
-        dod::slot_map<Counter> slotMap;
+        slot_map<Counter> slotMap;
 
         slotMap.emplace();
         auto id2 = slotMap.emplace();
@@ -415,7 +427,7 @@ TEST(SlotMapTest, CheckMoves)
         EXPECT_EQ(ctorCount2, 0);
         EXPECT_EQ(dtorCount2, 0);
         EXPECT_EQ(moveCount2, 0);
-        dod::slot_map<Counter2> slotMap;
+        slot_map<Counter2> slotMap;
 
         slotMap.emplace();
         auto id2 = slotMap.emplace();
@@ -471,8 +483,8 @@ TEST(SlotMapTest, CheckMoves)
 
 TEST(SlotMapTest, SwapTest)
 {
-    dod::slot_map<std::string> slotMapA;
-    dod::slot_map<std::string> slotMapB;
+    slot_map<std::string> slotMapA;
+    slot_map<std::string> slotMapB;
 
     EXPECT_EQ(slotMapA.size(), 0u);
     EXPECT_EQ(slotMapB.size(), 0u);
@@ -511,8 +523,8 @@ TEST(SlotMapTest, SwapTest)
 
 TEST(SlotMapTest, CopyAssignment)
 {
-    dod::slot_map<std::string> slotMapA;
-    dod::slot_map<std::string> slotMapB;
+    slot_map<std::string> slotMapA;
+    slot_map<std::string> slotMapB;
     EXPECT_EQ(slotMapA.size(), 0u);
     EXPECT_EQ(slotMapB.size(), 0u);
 
@@ -588,8 +600,8 @@ TEST(SlotMapTest, CopyAssignment)
 
 TEST(SlotMapTest, CopyAssignmentPod)
 {
-    dod::slot_map<int> slotMapA;
-    dod::slot_map<int> slotMapB;
+    slot_map<int> slotMapA;
+    slot_map<int> slotMapB;
     EXPECT_EQ(slotMapA.size(), 0u);
     EXPECT_EQ(slotMapB.size(), 0u);
 
@@ -665,7 +677,7 @@ TEST(SlotMapTest, CopyAssignmentPod)
 
 TEST(SlotMapTest, CopyCtor)
 {
-    dod::slot_map<std::string> slotMapA;
+    slot_map<std::string> slotMapA;
     EXPECT_EQ(slotMapA.size(), 0u);
 
     auto id1 = slotMapA.emplace("one");
@@ -676,7 +688,7 @@ TEST(SlotMapTest, CopyCtor)
 
     EXPECT_EQ(slotMapA.size(), 2u);
 
-    dod::slot_map<std::string> slotMapB(slotMapA);
+    slot_map<std::string> slotMapB(slotMapA);
     EXPECT_EQ(slotMapA.size(), 2u);
     EXPECT_EQ(slotMapB.size(), 2u);
 
@@ -829,9 +841,9 @@ TEST(SlotMapTest, MoveAssignment)
     auto id1 = dod::slot_map_key64<std::string>::invalid();
     auto id2 = dod::slot_map_key64<std::string>::invalid();
 
-    dod::slot_map<std::string> slotMapB;
+    slot_map<std::string> slotMapB;
     {
-        dod::slot_map<std::string> slotMapA;
+        slot_map<std::string> slotMapA;
         EXPECT_EQ(slotMapA.size(), 0u);
         EXPECT_EQ(slotMapB.size(), 0u);
 
@@ -871,7 +883,7 @@ TEST(SlotMapTest, MoveAssignment)
 
 TEST(SlotMapTest, MoveCtor)
 {
-    dod::slot_map<std::string> slotMapA;
+    slot_map<std::string> slotMapA;
     EXPECT_EQ(slotMapA.size(), 0u);
 
     auto id1 = slotMapA.emplace("one");
@@ -882,7 +894,7 @@ TEST(SlotMapTest, MoveCtor)
 
     EXPECT_EQ(slotMapA.size(), 2u);
 
-    dod::slot_map<std::string> slotMapB(std::move(slotMapA));
+    slot_map<std::string> slotMapB(std::move(slotMapA));
     EXPECT_EQ(slotMapB.size(), 2u);
 
     EXPECT_TRUE(slotMapB.has_key(id1));
