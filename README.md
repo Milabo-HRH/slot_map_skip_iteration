@@ -51,7 +51,8 @@ Cons:
 * Memory: 16GB
 * OS: macOS Sonoma 14.2
 ### Test Result
-Original slot map: original_result.txt
-Ordered slot map: ordered_result.txt
+Original slot map: original_result.txt\
+Ordered slot map: ordered_result.txt\
+low complexity jump-counting patterns slot map: low_complexity_result.txt
 
 PS: Even in iteration test, the original slot map is faster than the ordered slot map. I think it's because the test case is too dense and most time is not consumed during iteration. So the time complexity for iteration is not the main factor that affects the performance here.
