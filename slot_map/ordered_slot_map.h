@@ -409,9 +409,9 @@ template <typename T, typename TKeyType = slot_map_key64<T>, size_t PAGESIZE = 4
     };
 
     // index is initially set to 0, so we need to subtract 1 to get the actual index
-    static index_t storgeToIndex(index_t store) noexcept { return store - 1; }
+    static inline index_t storageToIndex(index_t store) noexcept { return store - 1; }
 
-    static index_t indexToStorage(index_t index) noexcept { return index + 1; }
+    static inline index_t indexToStorage(index_t index) noexcept { return index + 1; }
 
     struct Page
     {
@@ -815,6 +815,32 @@ template <typename T, typename TKeyType = slot_map_key64<T>, size_t PAGESIZE = 4
         m.version = slotVersion;
         m.tombstone = 1;
 
+        if(m.prev)
+        {
+            // update prev
+            const PageAddr prevAddr = getAddrFromIndex(storageToIndex(m.prev));
+            Meta& prevMeta = getMetaByAddr(prevAddr);
+            prevMeta.next = m.next;
+
+        }
+        else
+        {
+            // update head
+            headIndex = m.next;
+        }
+        if(m.next)
+        {
+            // update next
+            const PageAddr nextAddr = getAddrFromIndex(storageToIndex(m.next));
+            Meta& nextMeta = getMetaByAddr(nextAddr);
+            nextMeta.prev = m.prev;
+        }
+        else
+        {
+            // update tail
+            tailIndex = m.prev;
+        }
+
         if constexpr (!std::is_trivially_destructible<T>::value)
         {
             ValueStorage& v = getValueByAddr(addr);
@@ -961,6 +987,22 @@ template <typename T, typename TKeyType = slot_map_key64<T>, size_t PAGESIZE = 4
             SLOT_MAP_ASSERT(k.get_tag() == 0);
 
             m.tombstone = 0;
+
+            if (tailIndex)
+            {
+                // update tail
+                const PageAddr tailAddr = getAddrFromIndex(storageToIndex(tailIndex));
+                Meta& tailMeta = getMetaByAddr(tailAddr);
+                tailMeta.next = indexToStorage(index);
+                m.next = 0;
+                m.prev = tailIndex;
+            }
+            else
+            {
+                // update both head and tail
+                tailIndex = headIndex = indexToStorage(index);
+                m.prev = m.next = 0;
+            }
 
             ValueStorage& v = getValueByAddr(addr);
             construct<T>(&v, std::forward<Args>(args)...);
@@ -1169,11 +1211,17 @@ template <typename T, typename TKeyType = slot_map_key64<T>, size_t PAGESIZE = 4
 
         const_values_iterator& operator++() noexcept
         {
-            do
+            PageAddr addr = slotMap->getAddrFromIndex(currentIndex);
+            const Meta& m = slotMap->getMetaByAddr(addr);
+            if (m.next)
             {
-                currentIndex++;
-            } while (currentIndex <= slotMap->getMaxValidIndex() && slotMap->isTombstone(currentIndex));
-            return *this;
+                currentIndex = slotMap->storageToIndex(m.next);
+                return *this;
+            }
+            else
+            {
+                return end();
+            }
         }
 
         const_values_iterator operator++(int) noexcept
@@ -1190,13 +1238,13 @@ template <typename T, typename TKeyType = slot_map_key64<T>, size_t PAGESIZE = 4
 
     const_values_iterator begin() const noexcept
     {
-        if (pages.empty()) return end();
+        if (pages.empty() || headIndex==0) return end();
 
-        size_type index = 0;
-        while (index <= getMaxValidIndex() && isTombstone(index))
-        {
-            index++;
-        }
+        size_type index = storageToIndex(headIndex);
+        // while (index <= getMaxValidIndex() && isTombstone(index))
+        // {
+        //     index++;
+        // }
         return const_values_iterator(this, index);
     }
     const_values_iterator end() const noexcept { return const_values_iterator(this, getMaxValidIndex() + static_cast<size_type>(1)); }
@@ -1278,11 +1326,22 @@ template <typename T, typename TKeyType = slot_map_key64<T>, size_t PAGESIZE = 4
 
         const_kv_iterator& operator++() noexcept
         {
-            do
+            PageAddr addr = slotMap->getAddrFromIndex(currentIndex);
+            const Meta& m = slotMap->getMetaByAddr(addr);
+            if (m.next)
             {
-                currentIndex++;
-            } while (currentIndex <= slotMap->getMaxValidIndex() && slotMap->isTombstone(currentIndex));
-            return *this;
+                currentIndex = slotMap->storageToIndex(m.next);
+                return *this;
+            }
+            else
+            {
+                return end();
+            }
+            // do
+            // {
+            //     currentIndex++;
+            // } while (currentIndex <= slotMap->getMaxValidIndex() && slotMap->isTombstone(currentIndex));
+            // return *this;
         }
 
         const_kv_iterator operator++(int) noexcept
@@ -1312,12 +1371,12 @@ template <typename T, typename TKeyType = slot_map_key64<T>, size_t PAGESIZE = 4
 
         const_kv_iterator begin() const noexcept
         {
-            if (slotMap->pages.empty()) return end();
-            size_type index = 0;
-            while (index <= slotMap->getMaxValidIndex() && slotMap->isTombstone(index))
-            {
-                index++;
-            }
+            if (slotMap->pages.empty() || headIndex==0) return end();
+            size_type index = slotMap->storageToIndex(slotMap->headIndex);
+            // while (index <= slotMap->getMaxValidIndex() && slotMap->isTombstone(index))
+            // {
+            //     index++;
+            // }
             return const_kv_iterator(slotMap, index);
         }
         const_kv_iterator end() const noexcept
