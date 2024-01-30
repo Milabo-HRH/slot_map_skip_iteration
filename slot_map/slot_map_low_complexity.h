@@ -412,7 +412,7 @@ template <typename T, typename TKeyType = slot_map_key64<T>, size_t PAGESIZE = 4
         void* rawMemory;
         ValueStorage* values;
         Meta* meta;
-        std::pair<index_t, index_t> jump;
+        std::pair<index_t, index_t> jump; // if the page is inactive, this is the jump to the next/last occupied slot
         size_type numInactiveSlots;
         size_type numUsedElements;
 
@@ -569,7 +569,6 @@ template <typename T, typename TKeyType = slot_map_key64<T>, size_t PAGESIZE = 4
 
         Meta& m = lastPage.meta[elementIndex];
         m.version = key::kMinVersion;
-//        m.tombstone = 0;
         m.jump = 0;
         m.inactive = 0;
 
@@ -790,32 +789,6 @@ template <typename T, typename TKeyType = slot_map_key64<T>, size_t PAGESIZE = 4
             numItemsDestroyed++;
             elementIndex++;
         }
-//        for (size_t pageIndex = 0; pageIndex < pages.size(); pageIndex++)
-//        {
-//            Page& page = pages[pageIndex];
-//            if (page.meta == nullptr)
-//            {
-//                continue;
-//            }
-//            for (size_type elementIndex = 0; elementIndex < page.numUsedElements; elementIndex++)
-//            {
-//                PageAddr addr;
-//                addr.page = static_cast<size_type>(pageIndex);
-//                addr.index = static_cast<size_type>(elementIndex);
-//
-//                Meta& m = getMetaByAddr(addr);
-//                if (m.jump != 0)
-//                {
-//                    continue;
-//                }
-//                if constexpr (!std::is_trivially_destructible<T>::value)
-//                {
-//                    ValueStorage& v = getValueByAddr(addr);
-//                    destruct(reinterpret_cast<const T*>(&v));
-//                }
-//                numItemsDestroyed++;
-//            }
-//        }
         SLOT_MAP_ASSERT(numItemsDestroyed == numItems);
     }
 
@@ -825,6 +798,50 @@ template <typename T, typename TKeyType = slot_map_key64<T>, size_t PAGESIZE = 4
         ErasedAndIndexRecycled,
         ErasedAndPageDeactivated,
     };
+
+    template <typename index_t> void handleBetweenCycled(index_t index, Meta& m)
+    {
+        slot_map_low_complexity::index_t jumpBg = getJump(index - 1, true);
+        slot_map_low_complexity::index_t jumpEn = getJump(index + 1);
+        m.jump = jumpBg + jumpEn + 1;
+        // if the page is active
+        if (PageAddr addrBegin = getAddrFromIndex(index - jumpBg); pages[addrBegin.page].meta)
+        {
+            Meta& mBegin = getMetaByAddr(addrBegin);
+            mBegin.jump = jumpBg + jumpEn + 1;
+        }
+        // if the page is inactive
+        else
+        {
+            pages[addrBegin.page].jump.first = jumpBg + jumpEn + 1;
+        }
+
+        // if the page is active
+        if (PageAddr addrEnd = getAddrFromIndex(index + jumpEn); pages[addrEnd.page].meta)
+        {
+            Meta& mEnd = getMetaByAddr(addrEnd);
+            mEnd.jump = jumpBg + jumpEn + 1;
+        }
+
+        // if the page is inactive
+        else
+        {
+            pages[addrEnd.page].jump.second = jumpBg + jumpEn + 1;
+        }
+
+        // remove adjacent slots from freeIndices
+        if(isBetweenCycledSlots(index-1) && edgeIndicies.find(index-1)!= edgeIndicies.end())
+        {
+            innerIndicies[index - 1] = edgeIndicies[index - 1];
+            edgeIndicies.erase(index - 1);
+        }
+        if (isBetweenCycledSlots(index+1) && edgeIndicies.find(index+1)!= edgeIndicies.end())
+        {
+            innerIndicies[index + 1] = edgeIndicies[index + 1];
+            edgeIndicies.erase(index + 1);
+        }
+
+    }
 
     template <bool VERSION_CHECK> EraseResult eraseImpl(key k)
     {
@@ -860,7 +877,6 @@ template <typename T, typename TKeyType = slot_map_key64<T>, size_t PAGESIZE = 4
         bool deactivateSlot = (slotVersion == key::kMaxVersion);
         if (deactivateSlot)
         {
-            // version overflow = deactivate slot
             m.inactive = 1;
         }
         else
@@ -872,63 +888,31 @@ template <typename T, typename TKeyType = slot_map_key64<T>, size_t PAGESIZE = 4
         }
 
         m.version = slotVersion;
-//        m.tombstone = 1;
         // the slot to recycle is near another recycled slot
         bool isBetween= false;
         if(isBetweenCycledSlots(index)) {
             isBetween = true;
-            index_t jumpBg = getJump(index - 1, true);
-            index_t jumpEn = getJump(index + 1);
-            m.jump = jumpBg + jumpEn + 1;
-            PageAddr addrBegin = getAddrFromIndex(index - jumpBg);
-            if(pages[addrBegin.page].meta)
-            {
-                Meta& mBegin = getMetaByAddr(addrBegin);
-                mBegin.jump = jumpBg + jumpEn + 1;
-            }
-            else
-            {
-                pages[addrBegin.page].jump.first = jumpBg + jumpEn + 1;
-            }
-
-            PageAddr addrEnd = getAddrFromIndex(index + jumpEn);
-            if(pages[addrEnd.page].meta)
-            {
-                Meta& mEnd = getMetaByAddr(addrEnd);
-                mEnd.jump = jumpBg + jumpEn + 1;
-            }
-            else
-            {
-                pages[addrEnd.page].jump.second = jumpBg + jumpEn + 1;
-            }
-
-            if(isBetweenCycledSlots(index-1) && edgeIndicies.find(index-1)!=edgeIndicies.end())
-            {
-                innerIndicies[index - 1] = edgeIndicies[index - 1];
-                edgeIndicies.erase(index - 1);
-            }
-            if (isBetweenCycledSlots(index+1) && edgeIndicies.find(index+1)!=edgeIndicies.end())
-            {
-                innerIndicies[index + 1] = edgeIndicies[index + 1];
-                edgeIndicies.erase(index + 1);
-            }
+            handleBetweenCycled(index, m);
         }
         else
         {
+            // if the slot is at the left edge of a contiguous recycled slots
             if (index == 0 || (getJump(index - 1, true) == 0 && index != maxValidIndex))
             {
+                // update jump of current slot
                 index_t jump = getJump(index + 1);
                 m.jump = jump + 1;
                 if (jump)
                 {
-                    if(isBetweenCycledSlots(index+1) && edgeIndicies.find(index+1)!=edgeIndicies.end())
+                    // if adjacent slot is no longer the edge of a contiguous recycled slots
+                    if(isBetweenCycledSlots(index+1) && edgeIndicies.contains(index+1))
                     {
                         innerIndicies[index + 1] = edgeIndicies[index + 1];
                         edgeIndicies.erase(index + 1);
                     }
 
-                    PageAddr addrEnd = getAddrFromIndex(index + jump);
-                    if (pages[addrEnd.page].meta)
+                    // update jump of the adjacent slot
+                    if (PageAddr addrEnd = getAddrFromIndex(index + jump); pages[addrEnd.page].meta)
                     {
                         Meta& mEnd = getMetaByAddr(addrEnd);
                         mEnd.jump = jump + 1;
@@ -940,19 +924,23 @@ template <typename T, typename TKeyType = slot_map_key64<T>, size_t PAGESIZE = 4
 
                 }
             }
+
+            // if the slot is at the right edge of a contiguous recycled slots
             else if (index == maxValidIndex || getJump(index + 1) == 0)
             {
+                // update jump of current slot
                 index_t jump = getJump(index - 1, true);
                 m.jump = jump + 1;
                 if (jump)
                 {
-                    if(isBetweenCycledSlots(index-1) && edgeIndicies.find(index-1)!=edgeIndicies.end())
+                    // if adjacent slot is no longer the edge of a contiguous recycled slots
+                    if(isBetweenCycledSlots(index-1) && edgeIndicies.contains(index-1))
                     {
                         innerIndicies[index - 1] = edgeIndicies[index - 1];
                         edgeIndicies.erase(index - 1);
                     }
-                    PageAddr addrBegin = getAddrFromIndex(index - jump);
-                    if (pages[addrBegin.page].meta)
+                    // update jump of the adjacent slot
+                    if (PageAddr addrBegin = getAddrFromIndex(index - jump); pages[addrBegin.page].meta)
                     {
                         Meta& mBegin = getMetaByAddr(addrBegin);
                         mBegin.jump = jump + 1;
@@ -990,10 +978,10 @@ template <typename T, typename TKeyType = slot_map_key64<T>, size_t PAGESIZE = 4
         else
         {
             if(isBetween)
+                // current slot is inside a contiguous sequence of recycled slots
                 innerIndicies[index] = key::clearTagAndUpdateVersion(k, slotVersion);
-//                freeIndices.emplace_front(key::clearTagAndUpdateVersion(k, slotVersion));
             else
-            // recycle index id (note: tag is not saved!)
+                // current slot is the edge of a contiguous sequence of recycled slots
                 edgeIndicies[index] = key::clearTagAndUpdateVersion(k, slotVersion);
         }
         return EraseResult::ErasedAndIndexRecycled;
@@ -1101,7 +1089,69 @@ template <typename T, typename TKeyType = slot_map_key64<T>, size_t PAGESIZE = 4
         const T* constRes = getImpl(k);
         return const_cast<T*>(constRes);
     }
+private:
+    /*
+      Handle the situation of inserting a slot at the right edge of a contiguous sequence of recycled slots.
+    */
+    void handleRightEdge(index_t index, Meta& m)
+    {
+        if (PageAddr addrBegin = getAddrFromIndex(index - m.jump + 1); pages[addrBegin.page].meta)
+        {
+            Meta& mBegin = getMetaByAddr(addrBegin);
+            mBegin.jump = m.jump - 1;
+        }
+        else
+        {
+            pages[addrBegin.page].jump.first = m.jump - 1;
+        }
 
+        if (PageAddr addrEnd = getAddrFromIndex(index - 1); pages[addrEnd.page].meta)
+        {
+            Meta& mEnd = getMetaByAddr(addrEnd);
+            mEnd.jump = m.jump - 1;
+        }
+        else
+        {
+            pages[addrEnd.page].jump.second = m.jump - 1;
+        }
+        if (innerIndicies.contains(index - 1))
+        {
+            edgeIndicies[index - 1] = innerIndicies[index - 1];
+            innerIndicies.erase(index - 1);
+        }
+    }
+
+    /*
+      Handle the situation of inserting a slot at the left edge of a contiguous sequence of recycled slots.
+    */
+    void handleLeftEdge(index_t index, Meta& m)
+    {
+        if (PageAddr addrBegin = getAddrFromIndex(index + 1); pages[addrBegin.page].meta)
+        {
+            Meta& mBegin = getMetaByAddr(addrBegin);
+            mBegin.jump = m.jump - 1;
+        }
+        else
+        {
+            pages[addrBegin.page].jump.first = m.jump - 1;
+        }
+        if (PageAddr addrEnd = getAddrFromIndex(index + m.jump - 1); pages[addrEnd.page].meta)
+        {
+            Meta& mEnd = getMetaByAddr(addrEnd);
+            mEnd.jump = m.jump - 1;
+        }
+        else
+        {
+            pages[addrEnd.page].jump.second = m.jump - 1;
+        }
+        if (innerIndicies.contains(index + 1))
+        {
+            edgeIndicies[index + 1] = innerIndicies[index + 1];
+            innerIndicies.erase(index + 1);
+        }
+    }
+
+public:
     /*
       Constructs element in-place and returns a unique key that can be used to access this value.
     */
@@ -1111,7 +1161,6 @@ template <typename T, typename TKeyType = slot_map_key64<T>, size_t PAGESIZE = 4
         if (static_cast<size_type>(innerIndicies.size() + edgeIndicies.size()) > kMinFreeIndices && !edgeIndicies.empty())
         {
             key k = edgeIndicies.begin()->second;
-//            freeIndices.pop_front();
             edgeIndicies.erase(edgeIndicies.begin());
             index_t index = key::toIndex(k);
             SLOT_MAP_ASSERT(index <= getMaxValidIndex());
@@ -1122,83 +1171,22 @@ template <typename T, typename TKeyType = slot_map_key64<T>, size_t PAGESIZE = 4
             SLOT_MAP_ASSERT(m.inactive == 0);
             SLOT_MAP_ASSERT(m.jump != 0);
             SLOT_MAP_ASSERT(k.get_tag() == 0);
-            // the slot to insert is near another recycled slot
+
             if(index!=0 && getJump(index-1, true) )
             {
-                PageAddr addrBegin = getAddrFromIndex(index - m.jump + 1);
-                PageAddr addrEnd = getAddrFromIndex(index - 1);
-                if(pages[addrBegin.page].meta)
-                {
-                    Meta& mBegin = getMetaByAddr(addrBegin);
-                    mBegin.jump = m.jump - 1;
-                }
-                else
-                {
-                   pages[addrBegin.page].jump.first = m.jump - 1;
-                }
-                if(pages[addrEnd.page].meta)
-                {
-                    Meta& mEnd = getMetaByAddr(addrEnd);
-                    mEnd.jump = m.jump - 1;
-                }
-                else
-                {
-                    pages[addrEnd.page].jump.second = m.jump - 1;
-                }
-                if (innerIndicies.find(index - 1) != innerIndicies.end())
-                {
-                    edgeIndicies[index - 1] = innerIndicies[index - 1];
-                    innerIndicies.erase(index - 1);
-                }
+                // if the slot is at the right edge of a contiguous sequence of recycled slots
+                handleRightEdge(index, m);
             }
             else if(index<maxValidIndex && getJump(index+1))
             {
-
-                PageAddr addrBegin = getAddrFromIndex(index + 1);
-                if(pages[addrBegin.page].meta)
-                {
-                    Meta& mBegin = getMetaByAddr(addrBegin);
-                    mBegin.jump = m.jump - 1;
-                }
-                else
-                {
-                    pages[addrBegin.page].jump.first = m.jump - 1;
-                }
-                PageAddr addrEnd = getAddrFromIndex(index + m.jump - 1);
-                if (pages[addrEnd.page].meta)
-                {
-                    Meta& mEnd = getMetaByAddr(addrEnd);
-                    mEnd.jump = m.jump - 1;
-                }
-                else
-                {
-                    pages[addrEnd.page].jump.second = m.jump - 1;
-                }
-                if (innerIndicies.find(index + 1) != innerIndicies.end())
-                {
-                    edgeIndicies[index + 1] = innerIndicies[index + 1];
-                    innerIndicies.erase(index + 1);
-                }
+                // if the slot is at the left edge of a contiguous sequence of recycled slots
+                handleLeftEdge(index, m);
             }
             m.jump = 0;
             ValueStorage& v = getValueByAddr(addr);
             construct<T>(&v, std::forward<Args>(args)...);
             numItems++;
             return k;
-//            else
-//            {
-//                // another slot within a cycled range has been inactivated
-//                PageAddr addr = getAddrFromIndex(index);
-//                Meta& m = getMetaByAddr(addr);
-//                //inactive this slot
-//                m.inactive = 1;
-//                Page& page = pages[addr.page];
-//                page.numInactiveSlots++;
-//                if (page.numInactiveSlots == kPageSize)
-//                {
-//                    page.deallocate();
-//                }
-//            }
         }
 
         // allocate new item
@@ -1416,13 +1404,6 @@ template <typename T, typename TKeyType = slot_map_key64<T>, size_t PAGESIZE = 4
             ++*this;
             return res;
         }
-
-//        const_values_iterator operator--(int) noexcept
-//        {
-//            const_values_iterator res = *this;
-//            --*this;
-//            return res;
-//        }
 
       private:
         const slot_map_low_complexity* slotMap;
