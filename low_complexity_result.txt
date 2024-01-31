@@ -34,7 +34,7 @@
 [ RUN      ] SlotMapTest.CopyCtor
 [       OK ] SlotMapTest.CopyCtor (0 ms)
 [ RUN      ] SlotMapTest.CopyAssignmentWithInactivePages
-[       OK ] SlotMapTest.CopyAssignmentWithInactivePages (38286 ms)
+[       OK ] SlotMapTest.CopyAssignmentWithInactivePages (41640 ms)
 [ RUN      ] SlotMapTest.MoveAssignment
 [       OK ] SlotMapTest.MoveAssignment (0 ms)
 [ RUN      ] SlotMapTest.MoveCtor
@@ -44,9 +44,9 @@
 Num allocations: 825032704
 Pages: total: 2, active: 2, inactive: 0
 Items: total: 5184, alive: 1, tombstone: 1087, inactive: 4096
-[       OK ] SlotMapTest.IdCollisions_Slow (28062409 ms)
+[       OK ] SlotMapTest.IdCollisions_Slow (8884925 ms)
 [ RUN      ] SlotMapTest.BasicIterators
-[       OK ] SlotMapTest.BasicIterators (34251 ms)
+[       OK ] SlotMapTest.BasicIterators (40909 ms)
 [ RUN      ] SlotMapTest.BasicIterators2
 [       OK ] SlotMapTest.BasicIterators2 (0 ms)
 [ RUN      ] SlotMapTest.BasicIterators3
@@ -56,17 +56,17 @@ Items: total: 5184, alive: 1, tombstone: 1087, inactive: 4096
 [ RUN      ] SlotMapTest.IdsToAssociativeContainers32
 [       OK ] SlotMapTest.IdsToAssociativeContainers32 (0 ms)
 [ RUN      ] SlotMapTest.SlotsDeactivationOnClear
-[       OK ] SlotMapTest.SlotsDeactivationOnClear (754833 ms)
+[       OK ] SlotMapTest.SlotsDeactivationOnClear (211639 ms)
 [ RUN      ] SlotMapTest.PageDeactivationOnClear
-[       OK ] SlotMapTest.PageDeactivationOnClear (372977 ms)
+[       OK ] SlotMapTest.PageDeactivationOnClear (206848 ms)
 [ RUN      ] SlotMapTest.InvalidAndMalformedKeys
 [       OK ] SlotMapTest.InvalidAndMalformedKeys (0 ms)
 [ RUN      ] SlotMapTest.WorkingWithRemovedPages
 Pages: total: 7, active: 5, inactive: 2
 Items: total: 130, alive: 128, tombstone: 1, inactive: 1
-[       OK ] SlotMapTest.WorkingWithRemovedPages (40840 ms)
-[----------] 29 tests from SlotMapTest (29303601 ms total)
+[       OK ] SlotMapTest.WorkingWithRemovedPages (47335 ms)
+[----------] 29 tests from SlotMapTest (9433304 ms total)
 
 [----------] Global test environment tear-down
-[==========] 29 tests from 1 test suite ran. (29303602 ms total)
+[==========] 29 tests from 1 test suite ran. (9433305 ms total)
 [  PASSED  ] 29 tests.

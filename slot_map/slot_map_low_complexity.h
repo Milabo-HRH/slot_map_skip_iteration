@@ -778,25 +778,6 @@ template <typename T, typename TKeyType = slot_map_key64<T>, size_t PAGESIZE = 4
                 numItemsDestroyed++;
                 elementIndex++;
             }
-            // PageAddr addr = getAddrFromIndex(elementIndex);
-            // if (!isActivePage(addr))
-            // {
-            //     elementIndex += getJump(elementIndex);
-            //     continue;
-            // }
-            // Meta& m = getMetaByAddr(addr);
-            // if (m.jump != 0)
-            // {
-            //     elementIndex += m.jump;
-            //     continue;
-            // }
-            // if constexpr (!std::is_trivially_destructible<T>::value)
-            // {
-            //     ValueStorage& v = getValueByAddr(addr);
-            //     destruct(reinterpret_cast<const T*>(&v));
-            // }
-            // numItemsDestroyed++;
-            // elementIndex++;
         }
         SLOT_MAP_ASSERT(numItemsDestroyed == numItems);
     }
